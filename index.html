@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0B0612">
+<title>Tickd Watcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+/* Control panel for the cloud drop watcher. Same palette and type as the Tickd app (mobile/src/theme.ts).
+   Layout: one narrow column, status first, then the two buttons, then the numbers, then the log. */
+:root {
+  --ground: #0B0612;
+  --plum: #170C24;
+  --plum2: #231336;
+  --line: #34214D;
+  --uv: #A259FF;
+  --uv-soft: #C9A2FF;
+  --strobe: #FF4F9A;
+  --ink: #F4EEFB;
+  --body: #DCD2EA;
+  --mute: #A596BA;
+  --off: #6D6080;
+  --ok: #5FD7A0;
+  --warn: #FFB547;
+  --display: "Bricolage Grotesque", "Arial Black", system-ui, sans-serif;
+  --text: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground);
+  color: var(--body);
+  font: 15px/1.45 var(--text);
+  padding: max(20px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom));
+}
+[hidden] { display: none !important; }
+main, #app { display: grid; gap: 18px; }
+main { max-width: 460px; margin: 0 auto; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.logo { font: 800 30px/1 var(--display); color: var(--ink); letter-spacing: -1.2px; margin: 0; }
+.logo span { color: var(--uv); }
+.sub { font-size: 12px; color: var(--mute); }
+.eyebrow { font: 700 11px/1 var(--text); letter-spacing: 1.5px; text-transform: uppercase; color: var(--uv-soft); margin: 0; }
+.panel { background: var(--plum); border: 1px solid var(--line); border-radius: 20px; padding: 16px; display: grid; gap: 10px; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pill { font: 700 10px/1 var(--text); letter-spacing: .8px; padding: 6px 10px; border-radius: 99px; background: #1C1428; color: var(--off); white-space: nowrap; }
+.pill.on { background: rgba(162, 89, 255, .2); color: var(--uv-soft); }
+.pill.back { background: rgba(255, 181, 71, .16); color: var(--warn); }
+.status-line { font: 800 22px/1.15 var(--display); color: var(--ink); letter-spacing: -.4px; margin: 2px 0 0; text-wrap: balance; }
+.meta { font-size: 13px; color: var(--mute); margin: 0; overflow-wrap: anywhere; }
+.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+button { font: 700 16px/1 var(--text); color: #fff; border: 0; border-radius: 14px; padding: 15px 10px; cursor: pointer; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--uv-soft); outline-offset: 2px; }
+button:disabled { opacity: .4; cursor: default; }
+.start { background: linear-gradient(90deg, var(--uv), var(--strobe)); }
+.stop { background: var(--plum2); border: 1px solid var(--line); }
+.hours { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--mute); }
+select, input { font: 500 15px var(--text); color: var(--ink); background: var(--plum2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.tile { background: var(--plum2); border-radius: 14px; padding: 10px 8px; display: grid; gap: 4px; }
+.tile b { font: 800 22px/1 var(--display); color: var(--ink); font-variant-numeric: tabular-nums; }
+.tile span { font-size: 11px; color: var(--mute); }
+.tile.good b { color: var(--ok); }
+.tile.bad b { color: var(--strobe); }
+.tile.warn b { color: var(--warn); }
+.bar { height: 8px; border-radius: 99px; background: var(--plum2); overflow: hidden; display: flex; }
+.bar i { display: block; height: 100%; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px; margin: 0; }
+.facts dt { color: var(--mute); }
+.facts dd { margin: 0; color: var(--body); text-align: right; font-variant-numeric: tabular-nums; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; }
+.log li { display: grid; grid-template-columns: 62px 1fr auto; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.log li:first-child { border-top: 0; }
+.log time { color: var(--mute); font-variant-numeric: tabular-nums; }
+.log .what { min-width: 0; overflow-wrap: anywhere; color: var(--body); }
+.log .ms { color: var(--off); font-variant-numeric: tabular-nums; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.ok { background: var(--ok); } .blocked { background: var(--strobe); } .error { background: var(--warn); }
+.empty { font-size: 13px; color: var(--mute); margin: 0; }
+.error-msg { color: var(--strobe); font-size: 13px; margin: 0; }
+form.key { display: grid; gap: 10px; }
+form.key p { margin: 0; font-size: 14px; }
+code { font-size: 12px; background: var(--plum2); padding: 2px 5px; border-radius: 6px; color: var(--uv-soft); }
+.link { background: none; color: var(--off); font: 500 12px var(--text); padding: 4px 0; text-decoration: underline; justify-self: center; }
+@media (max-width: 360px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (prefers-reduced-motion: no-preference) { button { transition: transform .1s; } button:active:not(:disabled) { transform: scale(.98); } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 class="logo">tick<span>d</span></h1>
+    <span class="sub">Watcher control</span>
+  </header>
+
+  <!-- Shown until this phone has the admin key. -->
+  <section class="panel" id="keyPanel" hidden>
+    <p class="eyebrow">Admin key</p>
+    <form class="key" id="keyForm">
+      <p>Paste the value of <code>EXPO_PUBLIC_TICKD_ADMIN_KEY</code> from <code>mobile/.env</code>. It stays saved on this phone only.</p>
+      <input id="keyInput" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Admin key" required>
+      <button class="start" type="submit">Save key</button>
+      <p class="error-msg" id="keyError" hidden></p>
+    </form>
+  </section>
+
+  <div id="app" hidden>
+    <section class="panel">
+      <div class="head">
+        <p class="eyebrow">Watcher</p>
+        <span class="pill" id="pill">…</span>
+      </div>
+      <p class="status-line" id="statusLine">Loading…</p>
+      <p class="meta" id="lastCheck"></p>
+      <p class="meta">On by itself 8am–8pm (UK). Outside that, tap Start.</p>
+      <div class="buttons">
+        <button class="start" id="startBtn" type="button">Start</button>
+        <button class="stop" id="stopBtn" type="button">Stop</button>
+      </div>
+      <label class="hours" for="hoursSel">Start runs for
+        <select id="hoursSel">
+          <option value="1">1 hour</option>
+          <option value="3" selected>3 hours</option>
+          <option value="6">6 hours</option>
+          <option value="12">12 hours</option>
+        </select>
+      </label>
+      <p class="error-msg" id="error" hidden></p>
+    </section>
+
+    <section class="panel">
+      <div class="head">
+        <p class="eyebrow">Last 24 hours</p>
+        <span class="sub" id="dayRate"></span>
+      </div>
+      <div class="tiles">
+        <div class="tile"><b id="dChecks">0</b><span>checks</span></div>
+        <div class="tile good"><b id="dOk">0</b><span>got through</span></div>
+        <div class="tile bad"><b id="dBlocked">0</b><span>blocked</span></div>
+        <div class="tile warn"><b id="dErrors">0</b><span>failed</span></div>
+      </div>
+      <div class="bar" aria-hidden="true"><i class="ok" id="barOk"></i><i class="blocked" id="barBlocked"></i><i class="error" id="barErr"></i></div>
+      <dl class="facts">
+        <dt>Fixr answers in</dt><dd id="avgMs">–</dd>
+        <dt>Last 7 days</dt><dd id="week">–</dd>
+        <dt>Last blocked</dt><dd id="lastBlocked">Never</dd>
+      </dl>
+    </section>
+
+    <section class="panel">
+      <p class="eyebrow">Recent checks</p>
+      <ul class="log" id="log"></ul>
+      <p class="empty" id="logEmpty">No checks yet. They show up here as soon as the watcher runs.</p>
+    </section>
+
+    <button class="link" id="forget" type="button">Remove the key from this phone</button>
+  </div>
+</main>
+
+<script>
+const ENDPOINT = 'https://jovxzuccramxgtgjxcmq.supabase.co/functions/v1/fixr-watcher';
+const KEY_NAME = 'tickd.adminKey';
+const $ = (id) => document.getElementById(id);
+
+const store = {
+  get() { try { return localStorage.getItem(KEY_NAME); } catch { return null; } },
+  set(v) { try { localStorage.setItem(KEY_NAME, v); } catch {} },
+  clear() { try { localStorage.removeItem(KEY_NAME); } catch {} },
+};
+
+let key = store.get();
+let timer = null;
+
+const clock = (iso) => iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Europe/London' }) : '–';
+const when = (iso) => {
+  if (!iso) return 'Never';
+  const d = new Date(iso);
+  const day = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' });
+  return `${day}, ${clock(iso)}`;
+};
+const pct = (n, total) => total ? Math.round((n / total) * 100) : 0;
+
+async function call(action, hours) {
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
+    body: JSON.stringify({ action, hours }),
+  });
+  if (res.status === 401) throw Object.assign(new Error('That key was rejected. Check it matches mobile/.env.'), { unauthorised: true });
+  if (!res.ok) throw new Error(`The watcher answered ${res.status}. Try again in a moment.`);
+  return res.json();
+}
+
+function render(s) {
+  const blocked = s.blocked_until && new Date(s.blocked_until) > new Date();
+  const pill = $('pill');
+  pill.className = 'pill' + (s.mode === 'off' ? '' : blocked ? ' back' : ' on');
+  pill.textContent = s.mode === 'off' ? 'STOPPED' : blocked ? 'BACKING OFF' : s.mode === 'manual' ? 'RUNNING' : 'DAY WATCH';
+
+  $('statusLine').textContent =
+    blocked ? `Fixr blocked us. Trying again at ${clock(s.blocked_until)}`
+    : s.mode === 'manual' ? `Checking Fixr every 15s until ${clock(s.enabled_until)}`
+    : s.mode === 'day' ? 'Checking Fixr every 15s until 8pm'
+    : 'Not checking Fixr';
+  $('lastCheck').textContent = s.last_check_at ? `Last check ${clock(s.last_check_at)} · ${s.last_status ?? ''}` : 'No checks yet';
+  $('stopBtn').disabled = s.mode === 'off';
+  $('startBtn').textContent = s.mode === 'manual' ? 'Restart' : 'Start';
+
+  const st = s.stats ?? {};
+  const d = st.day ?? {};
+  const total = d.checks ?? 0;
+  $('dChecks').textContent = total.toLocaleString('en-GB');
+  $('dOk').textContent = (d.ok ?? 0).toLocaleString('en-GB');
+  $('dBlocked').textContent = (d.blocked ?? 0).toLocaleString('en-GB');
+  $('dErrors').textContent = (d.errors ?? 0).toLocaleString('en-GB');
+  $('dayRate').textContent = total ? `${pct(d.ok, total)}% got through` : '';
+  $('barOk').style.width = pct(d.ok, total) + '%';
+  $('barBlocked').style.width = pct(d.blocked, total) + '%';
+  $('barErr').style.width = pct(d.errors, total) + '%';
+  $('avgMs').textContent = d.avg_ms ? `${d.avg_ms} ms on average` : '–';
+  const w = st.week ?? {};
+  $('week').textContent = w.checks ? `${w.checks.toLocaleString('en-GB')} checks · ${w.blocked} blocked · ${w.errors} failed` : 'No checks';
+  $('lastBlocked').textContent = when(st.last_blocked_at);
+
+  const log = $('log');
+  log.replaceChildren();
+  for (const c of st.recent ?? []) {
+    const li = document.createElement('li');
+    const t = document.createElement('time');
+    t.dateTime = c.checked_at;
+    t.textContent = clock(c.checked_at);
+    const what = document.createElement('span');
+    what.className = 'what';
+    const dot = document.createElement('i');
+    dot.className = 'dot ' + c.outcome;
+    const label = c.outcome === 'ok' ? 'Got through' : c.outcome === 'blocked' ? `Blocked (${c.http_status})` : 'Failed';
+    what.append(dot, label + (c.message ? ` · ${c.message}` : ''));
+    const ms = document.createElement('span');
+    ms.className = 'ms';
+    ms.textContent = c.duration_ms != null ? `${c.duration_ms} ms` : '';
+    li.append(t, what, ms);
+    log.append(li);
+  }
+  $('logEmpty').hidden = (st.recent ?? []).length > 0;
+}
+
+function showError(err) {
+  if (err.unauthorised) { forget(err.message); return; }
+  $('error').textContent = err.message || 'Could not reach the watcher. Check your signal and try again.';
+  $('error').hidden = false;
+}
+
+async function refresh() {
+  try {
+    render(await call('status'));
+    $('error').hidden = true;
+  } catch (err) { showError(err); }
+}
+
+async function act(action) {
+  $('startBtn').disabled = $('stopBtn').disabled = true;
+  try {
+    render(await call(action, Number($('hoursSel').value)));
+    $('error').hidden = true;
+  } catch (err) { showError(err); }
+  $('startBtn').disabled = false;
+}
+
+function showApp() {
+  $('keyPanel').hidden = true;
+  $('app').hidden = false;
+  refresh();
+  clearInterval(timer);
+  timer = setInterval(() => { if (!document.hidden) refresh(); }, 15000);
+}
+
+function forget(message) {
+  store.clear();
+  key = null;
+  clearInterval(timer);
+  $('app').hidden = true;
+  $('keyPanel').hidden = false;
+  $('keyError').textContent = message || '';
+  $('keyError').hidden = !message;
+}
+
+$('keyForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  key = $('keyInput').value.trim();
+  $('keyInput').value = '';
+  if (!key) return;
+  store.set(key);
+  showApp();
+});
+$('startBtn').addEventListener('click', () => act('start'));
+$('stopBtn').addEventListener('click', () => act('stop'));
+$('forget').addEventListener('click', () => forget());
+document.addEventListener('visibilitychange', () => { if (!document.hidden && key) refresh(); });
+
+if (key) showApp(); else forget();
+</script>
+</body>
+</html>
