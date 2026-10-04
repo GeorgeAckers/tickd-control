@@ -98,13 +98,15 @@ code { font-size: 12px; background: var(--plum2); padding: 2px 5px; border-radiu
     <span class="sub">Watcher control</span>
   </header>
 
-  <!-- Shown until this phone has the admin key. -->
+  <p class="meta" id="checking">Checking your password…</p>
+
+  <!-- Shown until the watcher accepts a password. -->
   <section class="panel" id="keyPanel" hidden>
     <p class="eyebrow">Password</p>
     <form class="key" id="keyForm">
       <p>Enter the watcher password. It stays saved on this phone only.</p>
       <input id="keyInput" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="Password" aria-label="Password" required>
-      <button class="start" type="submit">Unlock</button>
+      <button class="start" id="unlockBtn" type="submit">Unlock</button>
       <p class="error-msg" id="keyError" hidden></p>
     </form>
   </section>
@@ -173,7 +175,7 @@ const store = {
   clear() { try { localStorage.removeItem(KEY_NAME); } catch {} },
 };
 
-let key = store.get();
+let key = null;
 let timer = null;
 
 const clock = (iso) => iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Europe/London' }) : '–';
@@ -272,10 +274,12 @@ async function act(action) {
   $('startBtn').disabled = false;
 }
 
-function showApp() {
+// Only shown after the watcher has accepted the password, with real status already rendered.
+function showApp(status) {
+  render(status);
+  $('checking').hidden = true;
   $('keyPanel').hidden = true;
   $('app').hidden = false;
-  refresh();
   clearInterval(timer);
   timer = setInterval(() => { if (!document.hidden) refresh(); }, 15000);
 }
@@ -284,26 +288,50 @@ function forget(message) {
   store.clear();
   key = null;
   clearInterval(timer);
+  $('checking').hidden = true;
   $('app').hidden = true;
   $('keyPanel').hidden = false;
   $('keyError').textContent = message || '';
   $('keyError').hidden = !message;
 }
 
+// Check a password with the watcher before letting anyone past the lock screen.
+async function unlock(candidate, remember) {
+  key = candidate;
+  const btn = $('unlockBtn');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  try {
+    const status = await call('status');
+    if (remember) store.set(candidate);
+    showApp(status);
+  } catch (err) {
+    if (err.unauthorised) forget(err.message);
+    else {
+      key = null;
+      $('checking').hidden = true;
+      $('keyPanel').hidden = false;
+      $('keyError').textContent = 'Could not reach the watcher. Check your signal and try again.';
+      $('keyError').hidden = false;
+    }
+  }
+  btn.disabled = false;
+  btn.textContent = 'Unlock';
+}
+
 $('keyForm').addEventListener('submit', (e) => {
   e.preventDefault();
-  key = $('keyInput').value.trim();
+  const candidate = $('keyInput').value.trim();
   $('keyInput').value = '';
-  if (!key) return;
-  store.set(key);
-  showApp();
+  if (candidate) unlock(candidate, true);
 });
 $('startBtn').addEventListener('click', () => act('start'));
 $('stopBtn').addEventListener('click', () => act('stop'));
 $('forget').addEventListener('click', () => forget());
-document.addEventListener('visibilitychange', () => { if (!document.hidden && key) refresh(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && key && !$('app').hidden) refresh(); });
 
-if (key) showApp(); else forget();
+const saved = store.get();
+if (saved) unlock(saved, false); else forget();
 </script>
 </body>
 </html>
