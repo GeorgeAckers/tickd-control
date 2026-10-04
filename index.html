@@ -82,6 +82,9 @@ select, input { font: 500 15px var(--text); color: var(--ink); background: var(-
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 .ok { background: var(--ok); } .blocked { background: var(--strobe); } .error { background: var(--warn); }
 .empty { font-size: 13px; color: var(--mute); margin: 0; }
+.confirm { display: grid; gap: 10px; }
+.result { color: var(--ink); }
+.result.bad { color: var(--strobe); }
 .error-msg { color: var(--strobe); font-size: 13px; margin: 0; }
 form.key { display: grid; gap: 10px; }
 form.key p { margin: 0; font-size: 14px; }
@@ -137,6 +140,23 @@ code { font-size: 12px; background: var(--plum2); padding: 2px 5px; border-radiu
 
     <section class="panel">
       <div class="head">
+        <p class="eyebrow">Test notification</p>
+        <span class="sub" id="phones"></span>
+      </div>
+      <p class="meta">Sends a test alert to every phone with Tickd. Doesn't check Fixr and doesn't show in Recent alerts.</p>
+      <button class="stop" id="testBtn" type="button">Send test notification</button>
+      <div class="confirm" id="testConfirm" hidden>
+        <p class="meta" id="testConfirmText"></p>
+        <div class="buttons">
+          <button class="start" id="testSend" type="button">Send it</button>
+          <button class="stop" id="testCancel" type="button">Cancel</button>
+        </div>
+      </div>
+      <p class="meta result" id="testResult" hidden></p>
+    </section>
+
+    <section class="panel">
+      <div class="head">
         <p class="eyebrow">Last 24 hours</p>
         <span class="sub" id="dayRate"></span>
       </div>
@@ -177,6 +197,7 @@ const store = {
 
 let key = null;
 let timer = null;
+let phones = 0;
 
 const clock = (iso) => iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Europe/London' }) : '–';
 const when = (iso) => {
@@ -212,6 +233,9 @@ function render(s) {
     : 'Not checking Fixr';
   $('lastCheck').textContent = s.last_check_at ? `Last check ${clock(s.last_check_at)} · ${s.last_status ?? ''}` : 'No checks yet';
   $('stopBtn').disabled = s.mode === 'off';
+  phones = s.phones ?? 0;
+  $('phones').textContent = `${phones} phone${phones === 1 ? '' : 's'} registered`;
+  $('testBtn').disabled = phones === 0;
   $('startBtn').textContent = s.mode === 'manual' ? 'Restart' : 'Start';
 
   const st = s.stats ?? {};
@@ -324,6 +348,40 @@ $('keyForm').addEventListener('submit', (e) => {
   const candidate = $('keyInput').value.trim();
   $('keyInput').value = '';
   if (candidate) unlock(candidate, true);
+});
+// Test notification: confirm first, since it goes to every registered phone.
+$('testBtn').addEventListener('click', () => {
+  $('testConfirmText').textContent = `Send a test alert to ${phones} phone${phones === 1 ? '' : 's'}?`;
+  $('testBtn').hidden = true;
+  $('testConfirm').hidden = false;
+  $('testResult').hidden = true;
+});
+$('testCancel').addEventListener('click', () => {
+  $('testConfirm').hidden = true;
+  $('testBtn').hidden = false;
+});
+$('testSend').addEventListener('click', async () => {
+  $('testSend').disabled = $('testCancel').disabled = true;
+  $('testSend').textContent = 'Sending…';
+  const result = $('testResult');
+  try {
+    const s = await call('test');
+    render(s);
+    const t = s.test ?? { phones: 0, ok: 0, errors: [] };
+    result.className = 'meta result' + (t.ok < t.phones ? ' bad' : '');
+    result.textContent = t.ok === t.phones
+      ? `Sent to ${t.ok} phone${t.ok === 1 ? '' : 's'} at ${clock(new Date().toISOString())}. It should arrive within a few seconds.`
+      : `Sent to ${t.ok} of ${t.phones} phones. ${t.errors[0] ?? ''}`;
+  } catch (err) {
+    if (err.unauthorised) { forget(err.message); return; }
+    result.className = 'meta result bad';
+    result.textContent = 'Could not send the test. Check your signal and try again.';
+  }
+  result.hidden = false;
+  $('testConfirm').hidden = true;
+  $('testBtn').hidden = false;
+  $('testSend').disabled = $('testCancel').disabled = false;
+  $('testSend').textContent = 'Send it';
 });
 $('startBtn').addEventListener('click', () => act('start'));
 $('stopBtn').addEventListener('click', () => act('stop'));
