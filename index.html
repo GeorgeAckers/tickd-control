@@ -140,6 +140,25 @@ code { font-size: 12px; background: var(--plum2); padding: 2px 5px; border-radiu
 
     <section class="panel">
       <div class="head">
+        <p class="eyebrow">Subscribers</p>
+        <span class="sub" id="subNew"></span>
+      </div>
+      <div class="tiles">
+        <div class="tile good"><b id="subActive">0</b><span>getting alerts</span></div>
+        <div class="tile"><b id="subRenewing">0</b><span>weekly / monthly</span></div>
+        <div class="tile"><b id="subPasses">0</b><span>term / year</span></div>
+        <div class="tile warn"><b id="subPaused">0</b><span>paused</span></div>
+      </div>
+      <dl class="facts">
+        <dt>By plan</dt><dd id="subPlans">–</dd>
+        <dt>By night</dt><dd id="subNights">–</dd>
+        <dt>Ever signed up</dt><dd id="subTotal">0</dd>
+      </dl>
+      <p class="meta">Weekly and monthly include people still in their free week. Money is in the Stripe dashboard.</p>
+    </section>
+
+    <section class="panel">
+      <div class="head">
         <p class="eyebrow">Test notification</p>
         <span class="sub" id="phones"></span>
       </div>
@@ -237,6 +256,20 @@ function render(s) {
   $('phones').textContent = `${phones} phone${phones === 1 ? '' : 's'} registered`;
   $('testBtn').disabled = phones === 0;
   $('startBtn').textContent = s.mode === 'manual' ? 'Restart' : 'Start';
+
+  const sb = s.subscribers ?? {};
+  $('subActive').textContent = sb.active ?? 0;
+  $('subRenewing').textContent = sb.renewing ?? 0;
+  $('subPasses').textContent = sb.passes ?? 0;
+  $('subPaused').textContent = sb.paused ?? 0;
+  $('subNew').textContent = sb.new_week ? `+${sb.new_week} this week` : '';
+  $('subTotal').textContent = sb.total ?? 0;
+  const planNames = { weekly: 'Weekly', monthly: 'Monthly', term: 'Term', year: 'Year' };
+  const plans = Object.entries(sb.by_plan ?? {}).map(([p, n]) => `${planNames[p] ?? p} ${n}`);
+  $('subPlans').textContent = plans.length ? plans.join(' · ') : '–';
+  const order = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  const nights = order.filter((n) => sb.by_night?.[n]).map((n) => `${n[0].toUpperCase() + n.slice(1)} ${sb.by_night[n]}`);
+  $('subNights').textContent = nights.length ? nights.join(' · ') : '–';
 
   const st = s.stats ?? {};
   const d = st.day ?? {};
