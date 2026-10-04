@@ -122,7 +122,7 @@ code { font-size: 12px; background: var(--plum2); padding: 2px 5px; border-radiu
       </div>
       <p class="status-line" id="statusLine">Loading…</p>
       <p class="meta" id="lastCheck"></p>
-      <p class="meta">On by itself 8am–8pm (UK). Outside that, tap Start.</p>
+      <p class="meta">Every 15s from 8am–8pm (UK), every 15 min overnight. Start runs every 15s whenever you like. Stop pauses until the next 8am or 8pm.</p>
       <div class="buttons">
         <button class="start" id="startBtn" type="button">Start</button>
         <button class="stop" id="stopBtn" type="button">Stop</button>
@@ -243,12 +243,13 @@ function render(s) {
   const blocked = s.blocked_until && new Date(s.blocked_until) > new Date();
   const pill = $('pill');
   pill.className = 'pill' + (s.mode === 'off' ? '' : blocked ? ' back' : ' on');
-  pill.textContent = s.mode === 'off' ? 'STOPPED' : blocked ? 'BACKING OFF' : s.mode === 'manual' ? 'RUNNING' : 'DAY WATCH';
+  pill.textContent = s.mode === 'off' ? 'STOPPED' : blocked ? 'BACKING OFF' : s.mode === 'manual' ? 'RUNNING' : s.mode === 'night' ? 'NIGHT WATCH' : 'DAY WATCH';
 
   $('statusLine').textContent =
     blocked ? `Fixr blocked us. Trying again at ${clock(s.blocked_until)}`
     : s.mode === 'manual' ? `Checking Fixr every 15s until ${clock(s.enabled_until)}`
     : s.mode === 'day' ? 'Checking Fixr every 15s until 8pm'
+    : s.mode === 'night' ? 'Night watch: checking every 15 min until 8am'
     : 'Not checking Fixr';
   $('lastCheck').textContent = s.last_check_at ? `Last check ${clock(s.last_check_at)} · ${s.last_status ?? ''}` : 'No checks yet';
   $('stopBtn').disabled = s.mode === 'off';
